@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analisador de Contratos · Clicksign (protótipo)</title>
+<style>
+  :root{
+    --ink:#16201B; --paper:#F4F6F3; --surface:#FFFFFF; --line:#E4E8E3;
+    --muted:#5F6B63; --muted2:#8A938B;
+    --primary:#F25924; --primary-600:#D8460F; --primary-tint:#FCEADF;
+    --amber:#8A5A0F; --amber-tint:#FBEFD8;
+    --red:#9A2B2B; --red-tint:#FBEAEA;
+    --ok:#2E7D32;
+    --radius:14px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(22,32,27,.05), 0 8px 30px rgba(22,32,27,.07);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--font); color:var(--ink); background:var(--paper);
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:0 20px;}
+
+  /* Top bar */
+  header.bar{
+    border-bottom:1px solid var(--line); background:var(--surface);
+    position:sticky; top:0; z-index:5;
+  }
+  .bar-in{display:flex; align-items:center; gap:14px; padding:14px 20px; max-width:920px; margin:0 auto;}
+  .mark{display:flex; align-items:center; gap:9px; font-weight:600; letter-spacing:-.02em; font-size:18px;}
+  .logo{width:26px; height:26px; border-radius:6px; display:inline-block; vertical-align:middle;}
+  .mark .sub{font-weight:400; color:var(--muted); font-size:14px; letter-spacing:0; border-left:1px solid var(--line); padding-left:14px;}
+  .pill{font-size:12px; font-weight:500; color:var(--primary-600); background:var(--primary-tint); padding:3px 9px; border-radius:999px;}
+  .bar-spacer{flex:1;}
+  .ghost-toggle{
+    display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);
+    border:1px solid var(--line); background:var(--surface); border-radius:999px;
+    padding:6px 12px; cursor:pointer;
+  }
+  .ghost-toggle:hover{border-color:var(--muted2);}
+  .switch{width:30px; height:17px; border-radius:999px; background:#D7DCD7; position:relative; transition:background .18s;}
+  .switch::after{content:""; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%; background:#fff; transition:transform .18s;}
+  body.growth-on .switch{background:var(--primary);}
+  body.growth-on .switch::after{transform:translateX(13px);}
+
+  main{padding:48px 0 80px;}
+
+  /* Stages */
+  .stage{display:none;}
+  .stage.on{display:block; animation:fade .4s ease both;}
+  @keyframes fade{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+
+  /* Upload */
+  .eyebrow{font-size:13px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--primary-600); margin-bottom:14px;}
+  h1{font-size:clamp(28px,4.4vw,42px); line-height:1.1; letter-spacing:-.025em; margin:0 0 14px; font-weight:600; max-width:18ch;}
+  .lede{font-size:18px; color:var(--muted); max-width:54ch; margin:0 0 32px;}
+  .drop{
+    background:var(--surface); border:1.5px dashed #C6CEC7; border-radius:var(--radius);
+    padding:40px 28px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .drop:hover,.drop.hover{border-color:var(--primary); background:#FBFCFB;}
+  .drop .ic{width:46px; height:46px; border-radius:12px; background:var(--primary-tint); color:var(--primary-600); display:inline-flex; align-items:center; justify-content:center; margin-bottom:14px;}
+  .drop strong{font-weight:600; font-size:16px; display:block; margin-bottom:4px;}
+  .drop span{color:var(--muted); font-size:14px;}
+  .or{display:flex; align-items:center; gap:14px; color:var(--muted2); font-size:13px; margin:18px 0;}
+  .or::before,.or::after{content:""; height:1px; background:var(--line); flex:1;}
+  .btn{
+    font-family:inherit; font-size:15px; font-weight:500; border-radius:var(--radius-sm);
+    padding:12px 20px; cursor:pointer; border:1px solid transparent; transition:.15s;
+  }
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-primary:hover{background:var(--primary-600);}
+  .btn-secondary{background:var(--surface); color:var(--ink); border-color:var(--line);}
+  .btn-secondary:hover{border-color:var(--muted2);}
+  .btn-ghost{background:transparent; color:var(--muted); padding:12px 8px;}
+  .btn-ghost:hover{color:var(--ink);}
+  .sample-wrap{text-align:center;}
+  .micro{margin-top:26px; font-size:13px; color:var(--muted2); display:flex; gap:18px; flex-wrap:wrap; justify-content:center;}
+  .micro span{display:inline-flex; align-items:center; gap:6px;}
+
+  /* Processing */
+  .proc{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:40px; box-shadow:var(--shadow); max-width:520px; margin:20px auto;}
+  .spinner{width:34px; height:34px; border:3px solid var(--primary-tint); border-top-color:var(--primary); border-radius:50%; margin:0 auto 22px; animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .steps{list-style:none; margin:0; padding:0;}
+  .steps li{display:flex; align-items:center; gap:11px; padding:9px 0; color:var(--muted2); font-size:15px; transition:color .2s;}
+  .steps li.done{color:var(--ink);}
+  .steps li .chk{width:20px; height:20px; border-radius:50%; border:2px solid var(--line); flex:none; display:flex; align-items:center; justify-content:center;}
+  .steps li.done .chk{background:var(--primary); border-color:var(--primary); color:#fff;}
+  .steps li .chk svg{opacity:0;} .steps li.done .chk svg{opacity:1;}
+
+  /* Result */
+  .doc-head{display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:22px;}
+  .doc-id{display:flex; align-items:center; gap:13px;}
+  .doc-id .fic{width:42px; height:42px; border-radius:10px; background:var(--primary-tint); color:var(--primary-600); display:flex; align-items:center; justify-content:center; flex:none;}
+  .doc-id .t{font-weight:600; font-size:16px;}
+  .doc-id .s{font-size:13px; color:var(--muted);}
+  .meter{display:flex; align-items:center; gap:11px;}
+  .meter .lbl{font-size:13px; color:var(--muted); text-align:right;}
+  .meter .lbl b{display:block; color:var(--amber); font-size:15px;}
+  .segs{display:flex; gap:4px;}
+  .segs i{width:24px; height:7px; border-radius:3px; background:var(--line); display:block;}
+  .segs i.f1{background:var(--ok);} .segs i.f2{background:var(--amber);} .segs i.f3{background:var(--red);}
+
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px 24px; margin-bottom:18px; box-shadow:var(--shadow);}
+  .card h3{margin:0 0 12px; font-size:13px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);}
+  .summary p{margin:0; font-size:16px; color:var(--ink);}
+
+  .terms{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border-radius:var(--radius-sm); overflow:hidden;}
+  .terms .cell{background:var(--surface); padding:14px 16px;}
+  .terms .k{font-size:12px; color:var(--muted2); margin-bottom:3px;}
+  .terms .v{font-size:15px; font-weight:500;}
+
+  .flag{display:flex; gap:14px; padding:16px 0; border-top:1px solid var(--line);}
+  .flag:first-of-type{border-top:none;}
+  .sev{flex:none; width:8px; border-radius:4px; align-self:stretch;}
+  .sev.alto{background:var(--red);} .sev.medio{background:var(--amber);} .sev.baixo{background:var(--muted2);}
+  .flag .body .ttl{font-weight:600; font-size:15px; display:flex; align-items:center; gap:9px; flex-wrap:wrap;}
+  .tag{font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; letter-spacing:.02em;}
+  .tag.alto{color:var(--red); background:var(--red-tint);}
+  .tag.medio{color:var(--amber); background:var(--amber-tint);}
+  .tag.baixo{color:var(--muted); background:#EEF1EE;}
+  .flag .body p{margin:5px 0 0; font-size:14.5px; color:var(--muted);}
+
+  .locked{position:relative; margin-top:4px;}
+  .locked .blur{filter:blur(5px); opacity:.5; pointer-events:none; user-select:none;}
+  .gate{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+    background:linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,.92) 55%);
+    text-align:center; padding:18px;
+  }
+  .gate .glock{width:38px; height:38px; border-radius:10px; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center;}
+  .gate p{margin:0; font-weight:600; font-size:15px;} .gate small{color:var(--muted); font-size:13px;}
+
+  .cta-bar{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:var(--ink); color:#fff; border-radius:var(--radius); padding:20px 24px; margin-top:8px;}
+  .cta-bar .txt strong{display:block; font-size:16px;} .cta-bar .txt span{font-size:13.5px; color:#B8C2BB;}
+  .cta-bar .btn-primary{background:#fff; color:var(--primary-600);} .cta-bar .btn-primary:hover{background:#EAF2EE;}
+  .restart{display:block; margin:30px auto 0; }
+
+  /* growth tags */
+  .gtag{display:none; font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--primary-600); background:var(--primary-tint); border:1px dashed var(--primary); padding:3px 9px; border-radius:6px; margin-bottom:10px; width:max-content;}
+  body.growth-on .gtag{display:inline-block;}
+
+  /* Modal */
+  .scrim{position:fixed; inset:0; background:rgba(16,24,20,.5); display:none; align-items:center; justify-content:center; padding:20px; z-index:20;}
+  .scrim.open{display:flex; animation:fade .25s ease both;}
+  .modal{background:var(--surface); border-radius:18px; max-width:430px; width:100%; padding:30px; box-shadow:0 24px 80px rgba(0,0,0,.3); position:relative;}
+  .modal .x{position:absolute; top:16px; right:16px; border:none; background:transparent; cursor:pointer; color:var(--muted2); padding:6px;}
+  .modal h2{margin:0 0 8px; font-size:22px; letter-spacing:-.02em;}
+  .modal .msub{margin:0 0 22px; color:var(--muted); font-size:15px;}
+  .field{margin-bottom:14px;}
+  .field input{width:100%; font-family:inherit; font-size:15px; padding:12px 14px; border:1px solid var(--line); border-radius:var(--radius-sm); outline:none;}
+  .field input:focus{border-color:var(--primary);}
+  .plan{border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:18px;}
+  .plan .row{display:flex; justify-content:space-between; align-items:baseline;}
+  .plan .name{font-weight:600; font-size:16px;} .plan .price{font-weight:600; font-size:22px; color:var(--primary-600);} .plan .price small{font-size:13px; color:var(--muted); font-weight:400;}
+  .plan ul{margin:14px 0 0; padding-left:0; list-style:none;}
+  .plan li{display:flex; gap:9px; align-items:flex-start; font-size:14px; padding:4px 0; color:var(--ink);}
+  .plan li svg{color:var(--primary); flex:none; margin-top:3px;}
+  .modal .btn-primary{width:100%;}
+  .modal .fineprint{text-align:center; margin:12px 0 0; font-size:12px; color:var(--muted2);}
+
+  .demo-note{position:fixed; bottom:14px; left:14px; font-size:11px; color:var(--muted2); background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 10px; z-index:4;}
+
+  :focus-visible{outline:2px solid var(--primary); outline-offset:2px;}
+  @media (max-width:620px){
+    .terms{grid-template-columns:repeat(2,1fr);}
+    .doc-head{flex-direction:column; align-items:flex-start;}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important;}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="bar-in">
+    <div class="mark"><img class="logo" src="data:image/png;base64,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" alt="Clicksign">clicksign <span class="sub">Analisador de contratos</span></div>
+    <span class="pill">IA · grátis</span>
+    <div class="bar-spacer"></div>
+    <button class="ghost-toggle" id="growthToggle" aria-pressed="false">
+      <span class="switch" aria-hidden="true"></span> Camada de growth
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- STAGE 1: UPLOAD -->
+  <section class="stage on" id="stage-upload">
+    <span class="gtag">Aquisição · topo de funil</span>
+    <div class="eyebrow">Antes de assinar, entenda</div>
+    <h1>Suba seu contrato. A IA aponta os riscos em segundos.</h1>
+    <p class="lede">Resumo em linguagem simples, cláusulas-chave e pontos de atenção do seu contrato — sem custo para começar.</p>
+
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Enviar contrato em PDF">
+      <span class="ic" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M5 19h14"/></svg>
+      </span>
+      <strong>Arraste o PDF ou clique para enviar</strong>
+      <span>Contratos de até 10 páginas na versão gratuita</span>
+      <input type="file" id="file" accept=".pdf" hidden>
+    </div>
+
+    <div class="or">ou</div>
+    <div class="sample-wrap">
+      <button class="btn btn-secondary" id="sampleBtn">Usar contrato de exemplo (matrícula)</button>
+    </div>
+
+    <div class="micro">
+      <span>⚡ Análise em segundos</span>
+      <span>🔒 Dados protegidos · LGPD</span>
+      <span>⚖️ Não substitui orientação jurídica</span>
+    </div>
+  </section>
+
+  <!-- STAGE 2: PROCESSING -->
+  <section class="stage" id="stage-proc">
+    <div class="proc">
+      <div class="spinner" aria-hidden="true"></div>
+      <ul class="steps" id="steps">
+        <li data-i="0"><span class="chk"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>Lendo o documento</li>
+        <li data-i="1"><span class="chk"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>Identificando as cláusulas</li>
+        <li data-i="2"><span class="chk"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>Avaliando os riscos</li>
+        <li data-i="3"><span class="chk"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span>Traduzindo para linguagem simples</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- STAGE 3: RESULT -->
+  <section class="stage" id="stage-result">
+    <span class="gtag">Ativação · primeiro valor percebido</span>
+    <div class="doc-head">
+      <div class="doc-id">
+        <span class="fic" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+        <div><div class="t" id="docName">contrato-matricula.pdf</div><div class="s">Contrato de prestação de serviços educacionais · 5 páginas</div></div>
+      </div>
+      <div class="meter">
+        <div class="lbl">Risco geral<b>Médio</b></div>
+        <div class="segs" aria-label="Risco geral: médio"><i class="f1"></i><i class="f2"></i><i></i></div>
+      </div>
+    </div>
+
+    <div class="card summary">
+      <h3>Resumo em linguagem simples</h3>
+      <p>É um contrato de matrícula escolar para um ano letivo, com mensalidade de R$ 980 reajustada a cada ano. No geral segue o padrão do setor, mas há cláusulas que pesam para a família — principalmente a multa por cancelamento no meio do ano e o reajuste da mensalidade. Vale conferir os pontos abaixo antes de assinar.</p>
+    </div>
+
+    <div class="card">
+      <h3>Termos-chave</h3>
+      <div class="terms">
+        <div class="cell"><div class="k">Partes</div><div class="v">Instituição · Responsável</div></div>
+        <div class="cell"><div class="k">Mensalidade</div><div class="v">R$ 980 / mês</div></div>
+        <div class="cell"><div class="k">Vigência</div><div class="v">Ano letivo</div></div>
+        <div class="cell"><div class="k">Reajuste</div><div class="v">Anual</div></div>
+        <div class="cell"><div class="k">Multa p/ cancelamento</div><div class="v">2 mensalidades</div></div>
+        <div class="cell"><div class="k">Renovação</div><div class="v">Rematrícula automática</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Pontos de atenção</h3>
+      <div class="flag">
+        <span class="sev medio" aria-hidden="true"></span>
+        <div class="body">
+          <div class="ttl">Multa por cancelamento no meio do ano <span class="tag medio">Médio</span></div>
+          <p>Se o aluno sair antes do fim do ano letivo, há cobrança de até 2 mensalidades. Confira se o valor é proporcional aos meses restantes e se há prazo de arrependimento.</p>
+        </div>
+      </div>
+      <div class="flag">
+        <span class="sev baixo" aria-hidden="true"></span>
+        <div class="body">
+          <div class="ttl">Reajuste anual da mensalidade <span class="tag baixo">Atenção</span></div>
+          <p>A mensalidade sobe a cada ano letivo. Confirme qual índice é usado e se existe um teto de reajuste.</p>
+        </div>
+      </div>
+
+      <div class="locked" id="locked">
+        <div class="blur" aria-hidden="true">
+          <div class="flag"><span class="sev medio"></span><div class="body"><div class="ttl">Rematrícula automática <span class="tag medio">Médio</span></div><p>O contrato se renova para o ano seguinte automaticamente se a família não avisar com antecedência.</p></div></div>
+          <div class="flag"><span class="sev baixo"></span><div class="body"><div class="ttl">Perda da bolsa por atraso <span class="tag baixo">Atenção</span></div><p>O desconto ou a bolsa pode ser cancelado se houver atraso no pagamento das mensalidades.</p></div></div>
+          <div class="flag"><span class="sev baixo"></span><div class="body"><div class="ttl">Multa e juros por atraso <span class="tag baixo">Baixo</span></div><p>O atraso gera multa de 2% mais juros mensais; confira os percentuais aplicados.</p></div></div>
+        </div>
+        <div class="gate" id="gate">
+          <span class="glock" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+          <div><p>Veja a análise completa, de graça</p><small>Mais 3 pontos de atenção · crie sua conta para desbloquear</small></div>
+          <button class="btn btn-primary" id="openAccount">Criar conta grátis</button>
+        </div>
+      </div>
+    </div>
+
+    <span class="gtag">Receita · upsell para o plano pago</span>
+    <div class="cta-bar">
+      <div class="txt"><strong>Tudo certo com o contrato?</strong><span>Envie para assinatura em 1 minuto, direto pelo WhatsApp.</span></div>
+      <button class="btn btn-primary" id="openUpsell">Enviar para assinatura via WhatsApp</button>
+    </div>
+
+    <button class="btn btn-ghost restart" id="restart">↺ Reiniciar demonstração</button>
+  </section>
+
+</main>
+
+<!-- ACCOUNT MODAL (acquisition) -->
+<div class="scrim" id="scrimAccount">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="accTitle">
+    <button class="x" data-close aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <h2 id="accTitle">Veja a análise completa</h2>
+    <p class="msub">Crie sua conta grátis para desbloquear os 3 pontos restantes. Sem cartão.</p>
+    <div class="field"><input type="email" id="email" placeholder="seu@email.com.br" aria-label="E-mail"></div>
+    <button class="btn btn-primary" id="doAccount">Criar conta e ver análise</button>
+    <p class="fineprint">Grátis até 10 páginas/mês · cancele quando quiser</p>
+  </div>
+</div>
+
+<!-- UPSELL MODAL (revenue) -->
+<div class="scrim" id="scrimUpsell">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="upTitle">
+    <button class="x" data-close aria-label="Fechar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <h2 id="upTitle">Mande para assinar em 1 minuto</h2>
+    <p class="msub">A análise é grátis. Para enviar este contrato para assinatura via WhatsApp e ter análises ilimitadas, assine o Plus.</p>
+    <div class="plan">
+      <div class="row"><span class="name">Plano Plus</span><span class="price">R$ 59<small>/mês</small></span></div>
+      <ul>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Assinatura via WhatsApp</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Análise de risco completa e ilimitada</li>
+        <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg> Click AI completo no fluxo de assinatura</li>
+      </ul>
+    </div>
+    <button class="btn btn-primary" id="doUpsell">Assinar Plus e enviar</button>
+    <p class="fineprint">Ou continue só com a análise gratuita</p>
+  </div>
+</div>
+
+<div class="demo-note">Protótipo · dados ilustrativos</div>
+
+<script>
+(function(){
+  var stages={upload:document.getElementById('stage-upload'),proc:document.getElementById('stage-proc'),result:document.getElementById('stage-result')};
+  function show(name){for(var k in stages){stages[k].classList.toggle('on',k===name);} window.scrollTo({top:0,behavior:'smooth'});}
+
+  function analyze(fileName){
+    if(fileName){document.getElementById('docName').textContent=fileName;}
+    show('proc');
+    var items=document.querySelectorAll('#steps li');
+    items.forEach(function(li){li.classList.remove('done');});
+    var i=0;
+    var t=setInterval(function(){
+      if(i<items.length){items[i].classList.add('done'); i++;}
+      else{clearInterval(t); setTimeout(function(){show('result');},450);}
+    },520);
+  }
+
+  // upload triggers
+  var drop=document.getElementById('drop'), file=document.getElementById('file');
+  drop.addEventListener('click',function(){file.click();});
+  drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click();}});
+  file.addEventListener('change',function(){analyze(file.files[0]?file.files[0].name:'contrato.pdf');});
+  ['dragover','dragenter'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('hover');});});
+  ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('hover');});});
+  drop.addEventListener('drop',function(e){var f=e.dataTransfer.files[0]; analyze(f?f.name:'contrato.pdf');});
+  document.getElementById('sampleBtn').addEventListener('click',function(){analyze('contrato-matricula.pdf');});
+
+  // modals
+  function open(id){document.getElementById(id).classList.add('open');}
+  function closeAll(){document.querySelectorAll('.scrim').forEach(function(s){s.classList.remove('open');});}
+  document.getElementById('openAccount').addEventListener('click',function(){open('scrimAccount');});
+  document.getElementById('openUpsell').addEventListener('click',function(){open('scrimUpsell');});
+  document.querySelectorAll('[data-close]').forEach(function(b){b.addEventListener('click',closeAll);});
+  document.querySelectorAll('.scrim').forEach(function(s){s.addEventListener('click',function(e){if(e.target===s)closeAll();});});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll();});
+
+  // account -> unlock
+  document.getElementById('doAccount').addEventListener('click',function(){
+    var locked=document.getElementById('locked');
+    locked.querySelector('.blur').style.filter='none';
+    locked.querySelector('.blur').style.opacity='1';
+    document.getElementById('gate').style.display='none';
+    closeAll();
+  });
+  document.getElementById('doUpsell').addEventListener('click',function(){
+    this.textContent='✓ Enviado para assinatura';
+    var self=this; setTimeout(function(){closeAll(); self.textContent='Assinar Plus e enviar';},900);
+  });
+
+  // restart
+  document.getElementById('restart').addEventListener('click',function(){
+    var locked=document.getElementById('locked');
+    locked.querySelector('.blur').style.filter=''; locked.querySelector('.blur').style.opacity='';
+    document.getElementById('gate').style.display='';
+    document.getElementById('docName').textContent='contrato-matricula.pdf';
+    show('upload');
+  });
+
+  // growth layer
+  var gt=document.getElementById('growthToggle');
+  gt.addEventListener('click',function(){
+    var on=document.body.classList.toggle('growth-on');
+    gt.setAttribute('aria-pressed',on?'true':'false');
+  });
+})();
+</script>
+</body>
+</html>
